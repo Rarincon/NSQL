@@ -1,0 +1,149 @@
+Datos de entrada
+
+Partimos del siguiente fichero json con resultados de las Pruebas Pisa por países en el año 2015
+
+https://raw.githubusercontent.com/RafaelCaballero/tdm/master/datos/pisa.json
+
+debemos descargar este fichero a nuestro ordenador y luego importarlo con:
+
+    mongoimport  -d educacion -c pisa --drop --file pisa.json
+
+El aspecto del fichero:
+
+    {"_id":1,"pais":"Albania","continente":"Europe","materia":"MAT","nota":413.157}
+    {"_id":2,"pais":"Albania","continente":"Europe","materia":"MAT_FE","nota":417.7500295}
+    {"_id":3,"pais":"Albania","continente":"Europe","materia":"MAT_MA","nota":408.5454587}
+    {"_id":4,"pais":"Albania","continente":"Europe","materia":"REA","nota":405.2588}
+    
+La materia puede ser MAT (matemáticas) REA (lectura) o SCI (ciencias). Además cada materia puede tener dos variantes: _FE para mujeres y _MA para hombres.     
+
+
+# Preguntas
+
+Utilizar aggregate para resolver las siguientes preguntas. 
+
+Se tendrá en cuenta la eficiencia (no hacer operaciones innecesarias y hacerlas en el orden adecuado)
+
+Recordar que estamos en Python y hay que poner comillas en cada clave: `{"$group":{"_id":...}}`
+
+### Pregunta 1 (1 punto)
+Queremos saber la media de la clave 'nota' para cada clave 'pais'. 
+El resultado debe estar por orden de media, de mayor a menor (para comprobar, el primero debe ser 'Singapore')
+
+db.pisa.aggregate(
+[
+{$group:
+{ _id:{pais:"$pais"},
+media: {$avg:'$nota'}
+}
+},
+{$sort: {media:-1} }
+]
+)
+
+### Pregunta 2 (1 punto)
+Lo mismo pero limitado al país 'Spain' (en este caso no hace falta ordenar, claro, es un solo documento)
+
+db.pisa.aggregate(
+[
+{$match : {pais:"Spain"}},
+{$group:
+{ _id:{pais:"$pais"},
+media: {$avg:'$nota'}
+}
+}
+]
+)
+
+
+### Pregunta 3 (1 punto)
+Ahora queremos repetir la consulta 1, pero de forma que la consulta devuelva solo aquellos documentos correspondientes a países con media igual o superior a 500. Mostrarlos por orden de media, de menor a mayor
+
+db.pisa.aggregate( [
+   {$group: { _id:{pais:"$pais"}, media:{ $avg:'$nota'}} } ,
+   {$match: {media:{$gte:500}} },
+	{$sort: {media:1}}
+	]
+)
+
+### Pregunta 4 (1 punto)
+Mostrar solo los documentos con materia SCI (sin agrupar por nada, solo estos documentos), pero quitando el continente y el _id. Mostrar por orden de nombre de país. La salida será de la forma:
+
+    {'materia': 'SCI', 'nota': 427.225, 'pais': 'Albania'}
+    {'materia': 'SCI', 'nota': 375.7451, 'pais': 'Algeria'}
+
+db.pisa.aggregate(
+        [
+	{$match: {materia:"SCI"}},
+	{$project:
+        {
+        materia:"$materia", nota: "$nota", pais:"$pais", _id:0, 
+        }
+        }, {$sort: {pais:1}}
+        ]
+)
+
+### Pregunta 5 (1 punto) 
+Ahora queremos hacer de nuevo primero la media por países, como en la consulta 1, pero después hacer la media de esas medias por continentes. Mostrar el resultado ordenado alfabéticamente por orden de nombre de continente
+
+
+db.pisa.aggregate(
+[
+{$group:
+{ _id:{pais:"$pais", c:"$continente"},
+media: {$avg:'$nota'}
+}
+},
+{$group: 
+{_id:{continente:"$_id.c"},
+media2: {$avg:'$media'}
+}
+},
+{$sort: {media2:-1} }
+]
+)
+
+### Pregunta 6 [1.5]
+
+Nos interesa tener un solo documento por cada país, incluyendo todas sus notas
+
+    {'_id': 'Albania',
+     'notas': [{'materia': 'SCI', 'nota': 427.225},
+               {'materia': 'REA', 'nota': 405.2588},
+               {'materia': 'MAT_FE', 'nota': 417.7500295},
+               {'materia': 'MAT', 'nota': 413.157},
+               {'materia': 'SCI_FE', 'nota': 439.4429629},
+               {'materia': 'MAT_MA', 'nota': 408.5454587},
+               {'materia': 'REA_FE', 'nota': 434.63962549999997},
+               {'materia': 'REA_MA', 'nota': 375.7591992},
+               {'materia': 'SCI_MA', 'nota': 414.9576437}]}
+
+Escribir una consulta para obtener documentos de este tipo
+
+db.pisa.aggregate(
+[
+{$group:
+{ _id:"$pais",
+notas: {$push:{materia:"$materia", nota:"$nota"}}
+}
+},
+{$sort: {_id:1} }
+]
+)
+
+
+### Pregunta 7 [1.5]
+Para la materia 'MAT', queremos mostrar cuántos países tienen nota entre 0 y 400 , 400 y 450, 450 y 500 y quinientos o más.  
+Nota: fijad los límites (intervalos cerrados o abiertos) como queráis 
+
+
+
+### Pregunta 8 [2 puntos]
+
+Queremos tener un documento por continente que contenga:
+ - Como _id  el nombre de ese continente
+ - Una clave `mediaMatMal` con la  media de notas "MAT" de los países de ese continente que tengan nota de "MAT" menor de 500 (se puede asumir que hay al menos 1)
+ - Una clave `numMatMal` con el número de países del continente que cumplen la condición anterior
+ - un array  `paises`  con los documentos de todos los paises de ese continente. 
+ 
+ El resultado debe quedar grabado en una colección de nombre `continenMat`

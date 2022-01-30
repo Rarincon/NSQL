@@ -1,0 +1,51 @@
+// 1) Número de tweets que están en español (clave "lang" de la colección "tweet" con valor "es"). 
+
+db.tweet.count({lang:"es"})
+
+// 2) Número de tweets que NO están en inglés (clave "lang" de la colección "tweet"  valor diferente a "en"). 
+
+db.tweet.count({lang:{$ne: "en"}})
+
+// 3) Número de usuarios con más de 1000 y menos de 2000 seguidores (clave follower de la colección user)
+
+db.user.count({followers:{$gt:1000,$lt:2000}})
+
+// 4) Mostrar tweet que tenga el mayor número de retweets (mayor valor para la clave nRT en la colección tweet). 
+//    En particular, para este tweet queremos conocer solo las claves: _id, screen_name, text, nRT
+
+db.tweet.find({},{screen_name:1,text:1,nRT:1,_id:1}).sort({nRT:-1}).limit(1)
+
+// 5) Queremos ver si de verdad el tweet de la pregunta anterior tiene tantos retweets. 
+// Para ello escribir una consulta que muestra el número de tweets tales que
+// - Tienen RT:true (es decir tweets que son retweets)
+// - RT_source es el _id del tweet anterior (copiar directamente el _id que se ha obtenido se la consulta anterior no hace falta hacer ninguna subconsulta ni nada complicado, simplemente utilizar el string).
+db.tweet.count({RT:true,RT_source: "1311921357056245760"})
+
+// 6)  Número de tweets que mencionan (clave screen_name de user_mentions) al usuario con screen_name  "realDonaldTrump"
+db.tweet.count({"user_mentions.screen_name":"realDonaldTrump"})
+
+// 7) Número de tweets que mencionan al menos a 3 personas (es decir el array user_mentions tiene al menos 3 elementos)
+db.tweet.count({"user_mentions.2":{$exists:true}})
+
+// 8) Número de usuarios que tienen más seguidores (followers en la colección user) que amigos (clave friends_count de la misma colección)
+ db.user.count( { $expr: { $gt: [ "$followers" , "$friends_count" ] } } )
+
+// 9) (Difícil) Número de valores diferentes que toma la clave "RT_source" en la colección tweet 
+// (como curiosidad: esto equivale a preguntar cuántos tweets de la colección han sido retuiteados)
+db.tweet.distinct("RT_source").length
+
+// 10) (Muy difícil) 
+// Queremos mostrar el texto de los tweets o retweets (elementos de la colección tweet) que haya emitido o retuiteado 
+// el usuario con clave screen_name 'VLovesAnimals'. 
+// Para ello podemos simplemente buscar todos los documentos con este screen_name en la colección tweet.
+// Sin embargo, hay un problema: si el tweet es original (RT a false) entonces, en efecto, tendremos un campo text que mostrar. 
+// Pero, si el tweet tiene RT a true es que es un retweet, y en este caso no disponemos del texto, sino solo de una clave RT_source que contiene el _id del tweet retuiteado. 
+// Es decir en este segundo caso habría que buscar el tweet cuyo _id coincide con RT_source, y mostrar su texto.
+// Preceder el texto del tweet con la palabra "retweet" si es retweet u "original" en otro caso.
+// NOTA: Se puede usar cualquier recurso con tal de que sea código ejecutable en la shell de mongo
+
+db.tweet.find({screen_name:'VLovesAnimals'}).forEach(function(doc) {
+if (doc.RT==false) {print("original ",doc["text"]);}
+else {print("Retweet ",db.tweet.findOne({"_id":doc["RT_source"]})["text"]); }
+});
+

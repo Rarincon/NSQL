@@ -1,0 +1,74 @@
+﻿// 1 
+mongo --port 27001
+config = {
+              _id: "practReplica",
+ 
+              members: [ {_id:0, host:"127.0.0.1:27001", priority:2 },
+ 
+                               {_id:1, host:"127.0.0.1:27002" },
+ 
+              {_id:2, host:"127.0.0.1:27003",  priority:0, slaveDelay:120 } ]
+ 
+          }
+rs.initiate(config)
+
+// 2 
+
+config2 = rs.conf()
+config2.members[2].slaveDelay = 10
+rs.reconfig(config2)
+rs.conf() //Comprobar
+
+// 3 
+rs.status()
+ 			"_id" : 2,
+                        "name" : "127.0.0.1:27003",
+                        "health" : 0,
+                        "state" : 8,
+                        "stateStr" : "(not reachable/healthy)",
+                        "uptime" : 0,
+                        "optime" : {
+                                "ts" : Timestamp(0, 0),
+                                "t" : NumberLong(-1)
+                        },
+                        "optimeDurable" : {
+                                "ts" : Timestamp(0, 0),
+                                "t" : NumberLong(-1)
+                        },
+
+// 4 
+db.pru.insert({a:1},{writeConcern:{w:3, wtimeout:20000}})
+
+// 5 
+Si que tiene elementos, todos menos el ultimo que nos notifico. Mientras se estaban copiando en todos
+se produjo un corte y el ultimo elemento que genero la replica primaria no pudo enviarse al resto. Dado que va
+insertando uno a uno mantiene una consistencia entre todas las replicas.
+
+// 6 
+No se puede ver la colección tururu. Hay que usar lo comandos desde el T3, o en el caso de cualquier Secondary:
+rs.slaveOk()
+db.tururu.find()
+
+// 7 
+No se puede. No hay que hacer nada en especial, ya que solo la replica primaria puede hacer inserciones. Entonces si queremos
+insertar tendriamos que conectarnos a la replica Primary. En principio nunca se escribe en un secundario, ya que no nos va a 
+dejar escribir ni dandole permisos. 
+
+// 8 
+Al conectarse era el secundario, ya que justo acababa de entrar, pero tras esperar unos segundos se ha convertido en el primario. Se debe a que aun estaban discutiendo las replicas
+quien iba a ser el primario. Acaba siendo el primario debido a que en un apartado anterior le dimos mayor prioridad.
+
+// 9 
+db.tururu.find().readPref("secondary")
+
+// 10 
+Todo esto hay que hacerlo en una misma consola y en el menor tiempo posible
+Una vez estemos conectados al cluster/replica del que tenga el status de Primary hacer:
+
+rs.stepDown()
+CTRL+d
+mongo --port 27002 //Ver que sea el Primario ahora
+var a = connect("127.0.0.1:27001/admin");
+a.shutdownServer()
+rs.remove("127.0.0.1:27001")
+
